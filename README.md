@@ -27,7 +27,7 @@ Supports **MP4 (video)** and **MKV (document)** formats.
 - 🔍 Status checks with `/status`
 - 🆔 Get chat ID with `/getid`
 
-> ⚠️ This bot is **not** an anime/news bot – it’s purely for  
+> ⚠️ This bot is **not** an anime bot – it’s purely for  
 > **audio track selection and video processing**.
 
 ---
