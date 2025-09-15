@@ -1,32 +1,19 @@
-# ----------------------------------------
-# 𝐌𝐀𝐃𝐄 𝐁𝐘 𝐀𝐁𝐇𝐈
-# 𝐓𝐆 𝐈𝐃 : @𝐂𝐋𝐔𝐓𝐂𝐇𝟎𝟎𝟖
-# 𝐀𝐍𝐘 𝐈𝐒𝐒𝐔𝐄𝐒 𝐎𝐑 𝐀𝐃𝐃𝐈𝐍𝐆 𝐌𝐎𝐑𝐄 𝐓𝐇𝐈𝐍𝐆𝐬 𝐂𝐀𝐍 𝐂𝐎𝐍𝐓𝐀𝐂𝐓 𝐌𝐄
-# ----------------------------------------
-
 import os
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from pyrogram.enums import ChatType
 import logging
+import asyncio
 from config import DOWNLOAD_DIR, ALLOWED_GROUP_IDS, OWNER_ID, MAX_FILE_SIZE, PREMIUM_USERS, DAILY_LIMIT_FREE, DAILY_LIMIT_PREMIUM
 from utils import (
     get_audio_tracks, select_audio_tracks, download_with_progress,
     upload_with_progress, create_track_selection_keyboard,
-    create_format_selection_keyboard, user_selections, sanitize_filename,
-    validate_video_file, generate_thumbnail, check_daily_limit, safe_telegram_call
+    create_quality_selection_keyboard, create_watermark_prompt, create_format_selection_keyboard,
+    user_selections, sanitize_filename, validate_video_file, generate_thumbnail, check_daily_limit, safe_telegram_call, load_watermark_settings
 )
-# ----------------------------------------
-# 𝐌𝐀𝐃𝐄 𝐁𝐘 𝐀𝐁𝐇𝐈
-# 𝐓𝐆 𝐈𝐃 : @𝐂𝐋𝐔𝐓𝐂𝐇𝟎𝟎𝟖
-# 𝐀𝐍𝐘 𝐈𝐒𝐒𝐔𝐄𝐒 𝐎𝐑 𝐀𝐃𝐃𝐈𝐍𝐆 𝐌𝐎𝐑𝐄 𝐓𝐇𝐈𝐍𝐆𝐬 𝐂𝐀𝐍 𝐂𝐎𝐍𝐓𝐀𝐂𝐓 𝐌𝐄
-# ----------------------------------------
+
 logger = logging.getLogger(__name__)
-# ----------------------------------------
-# 𝐌𝐀𝐃𝐄 𝐁𝐘 𝐀𝐁𝐇𝐈
-# 𝐓𝐆 𝐈𝐃 : @𝐂𝐋𝐔𝐓𝐂𝐇𝟎𝟎𝟖
-# 𝐀𝐍𝐘 𝐈𝐒𝐒𝐔𝐄𝐒 𝐎𝐑 𝐀𝐃𝐃𝐈𝐍𝐆 𝐌𝐎𝐑𝐄 𝐓𝐇𝐈𝐍𝐆𝐬 𝐂𝐀𝐍 𝐂𝐎𝐍𝐓𝐀𝐂𝐓 𝐌𝐄
-# ----------------------------------------
+
 def register_video_handlers(app: Client):
     @app.on_message(filters=filters.video | filters.document)
     async def handle_message(client: Client, message: Message):
@@ -76,13 +63,32 @@ def register_video_handlers(app: Client):
             await safe_telegram_call(client.edit_message_text, chat_id, msg.id, "No audio tracks found.")
             user_selections[chat_id][user_id]['processing'] = False
             return
-        user_selections[chat_id][user_id].update({'file_path': path, 'selected_tracks': set(), 'output_format': None, 'status': 'Selecting tracks...', 'last_percent': 0})
+        user_selections[chat_id][user_id].update({'file_path': path, 'selected_tracks': set(), 'output_format': None, 'quality': None, 'watermark': None, 'status': 'Selecting tracks...', 'last_percent': 0})
         await safe_telegram_call(client.edit_message_text, chat_id, msg.id, "Select tracks:", reply_markup=await create_track_selection_keyboard(chat_id, user_id, tracks))
-# ----------------------------------------
-# 𝐌𝐀𝐃𝐄 𝐁𝐘 𝐀𝐁𝐇𝐈
-# 𝐓𝐆 𝐈𝐃 : @𝐂𝐋𝐔𝐓𝐂𝐇𝟎𝟎𝟖
-# 𝐀𝐍𝐘 𝐈𝐒𝐒𝐔𝐄𝐒 𝐎𝐑 𝐀𝐃𝐃𝐈𝐍𝐆 𝐌𝐎𝐑𝐄 𝐓𝐇𝐈𝐍𝐆𝐬 𝐂𝐀𝐍 𝐂𝐎𝐍𝐓𝐀𝐂𝐓 𝐌𝐄
-# ----------------------------------------
+
+    @app.on_message(filters.text & filters.reply)
+    async def handle_watermark_text(client: Client, message: Message):
+        chat_id, user_id = message.chat.id, message.from_user.id
+        if user_id not in user_selections.get(chat_id, {}) or not user_selections[chat_id][user_id].get('processing'):
+            await safe_telegram_call(message.reply, "No active process.")
+            return
+        if user_selections[chat_id][user_id].get('status') != 'Waiting for watermark...':
+            await safe_telegram_call(message.reply, "Not expecting a watermark input.")
+            return
+        watermark_text = message.text.strip()
+        if not watermark_text:
+            await safe_telegram_call(message.reply, "Watermark text cannot be empty.")
+            return
+        user_selections[chat_id][user_id]['watermark'] = watermark_text
+        user_selections[chat_id][user_id]['status'] = "Selecting output format..."
+        await safe_telegram_call(
+            client.edit_message_text,
+            chat_id,
+            user_selections[chat_id][user_id]['status_message_id'],
+            "Select output format:",
+            reply_markup=await create_format_selection_keyboard()
+        )
+
     @app.on_callback_query()
     async def handle_callback(client: Client, cq):
         chat_id, user_id = cq.message.chat.id, cq.from_user.id
@@ -108,6 +114,50 @@ def register_video_handlers(app: Client):
             if not user_selections[chat_id][user_id]['selected_tracks']:
                 await safe_telegram_call(cq.message.reply, "Select at least one track.")
                 return
+            user_selections[chat_id][user_id]['status'] = "Selecting quality..."
+            await safe_telegram_call(
+                client.edit_message_text,
+                chat_id,
+                status_message_id,
+                "Select video quality:",
+                reply_markup=await create_quality_selection_keyboard()
+            )
+        elif data.startswith("quality_"):
+            quality = data.split("_")[1]
+            user_selections[chat_id][user_id]['quality'] = quality
+            settings = load_watermark_settings(user_id)
+            if settings.get('enabled', False) and settings.get('text'):
+                user_selections[chat_id][user_id]['status'] = "Selecting output format..."
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    status_message_id,
+                    "Select output format:",
+                    reply_markup=await create_format_selection_keyboard()
+                )
+            else:
+                user_selections[chat_id][user_id]['status'] = "Waiting for watermark..."
+                user_selections[chat_id][user_id]['watermark_timeout'] = asyncio.get_event_loop().time() + 30
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    status_message_id,
+                    "Reply with your watermark text (e.g., 'ABHI') within 30 seconds or click Skip Watermark.",
+                    reply_markup=await create_watermark_prompt()
+                )
+                asyncio.create_task(watermark_timeout(client, chat_id, user_id, status_message_id))
+        elif data == "watermark_text":
+            user_selections[chat_id][user_id]['status'] = "Waiting for watermark..."
+            user_selections[chat_id][user_id]['watermark_timeout'] = asyncio.get_event_loop().time() + 30
+            await safe_telegram_call(
+                client.edit_message_text,
+                chat_id,
+                status_message_id,
+                "Reply with your watermark text (e.g., 'ABHI') within 30 seconds or click Skip Watermark.",
+                reply_markup=await create_watermark_prompt()
+            )
+        elif data == "watermark_skip":
+            user_selections[chat_id][user_id]['watermark'] = None
             user_selections[chat_id][user_id]['status'] = "Selecting output format..."
             await safe_telegram_call(
                 client.edit_message_text,
@@ -127,7 +177,7 @@ def register_video_handlers(app: Client):
             thumb = os.path.join(DOWNLOAD_DIR, f"{os.path.splitext(outname)[0]}.jpg")
             info['status'] = "Processing video..."
             await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, "Processing video...")
-            select_audio_tracks(src, dst, list(info['selected_tracks']), fmt)
+            select_audio_tracks(src, dst, list(info['selected_tracks']), fmt, quality=info.get('quality', 'medium'), watermark=info.get('watermark'), user_id=user_id)
             generate_thumbnail(src, thumb)
             cap = info.get('default_caption', "Here is your video.")
             info['status'] = "Uploading video..."
@@ -142,11 +192,20 @@ def register_video_handlers(app: Client):
             await safe_telegram_call(cq.message.delete)
             if user_selections[chat_id][user_id]['queue']:
                 nxt = user_selections[chat_id][user_id]['queue'].pop(0)
+                await handle_message(client, nxt)
 
-
-
-# ----------------------------------------
-# 𝐌𝐀𝐃𝐄 𝐁𝐘 𝐀𝐁𝐇𝐈
-# 𝐓𝐆 𝐈𝐃 : @𝐂𝐋𝐔𝐓𝐂𝐇𝟎𝟎𝟖
-# 𝐀𝐍𝐘 𝐈𝐒𝐒𝐔𝐄𝐒 𝐎𝐑 𝐀𝐃𝐃𝐈𝐍𝐆 𝐌𝐎𝐑𝐄 𝐓𝐇𝐈𝐍𝐆𝐬 𝐂𝐀𝐍 𝐂𝐎𝐍𝐓𝐀𝐂𝐓 𝐌𝐄
-# ----------------------------------------                
+    async def watermark_timeout(client: Client, chat_id: int, user_id: int, status_message_id: int):
+        try:
+            await asyncio.sleep(30)
+            if user_selections.get(chat_id, {}).get(user_id, {}).get('status') == "Waiting for watermark...":
+                user_selections[chat_id][user_id]['watermark'] = None
+                user_selections[chat_id][user_id]['status'] = "Selecting output format..."
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    status_message_id,
+                    "Watermark input timed out. Select output format:",
+                    reply_markup=await create_format_selection_keyboard()
+                )
+        except Exception as e:
+            logger.error(f"Watermark timeout failed: {str(e)}")
