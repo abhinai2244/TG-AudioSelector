@@ -1,4 +1,6 @@
 # 🎵 Audio Selector Bot
+# STAR THE REPO IT HELPS US A ALOT 
+# NEXT I WILL ADD MERGING VIDEOS FOR THIS REPO IF U SHOW US SUPPORT 
 
 [![Pyrogram](https://img.shields.io/badge/Pyrogram-Bot-blue)](https://docs.pyrogram.org/)
 [![FFmpeg](https://img.shields.io/badge/Powered%20by-FFmpeg-red)](https://ffmpeg.org/)
