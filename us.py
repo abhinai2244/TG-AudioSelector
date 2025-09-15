@@ -46,137 +46,141 @@ def register_us_handlers(app: Client):
         font_size = settings.get('font_size', 24)
         font_size_label = {16: 'Small', 24: 'Medium', 32: 'Large'}.get(font_size, 'Medium')
 
-        if data == "watermark_config":
-            await safe_telegram_call(
-                client.edit_message_text,
-                chat_id,
-                cq.message.id,
-                (
-                    f"Watermark Settings:\n"
-                    f"Toggle: {toggle_status}\n"
-                    f"Text: {watermark_text}\n"
-                    f"Position: {position}\n"
-                    f"Font Size: {font_size_label}\n\n"
-                    f"Select an option:"
-                ),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Watermark Text", callback_data="watermark_text")],
-                    [InlineKeyboardButton("Position", callback_data="watermark_position")],
-                    [InlineKeyboardButton("Font Size", callback_data="watermark_font_size")],
-                    [InlineKeyboardButton(f"Toggle Watermark ({toggle_status})", callback_data="watermark_toggle")]
-                ])
-            )
-        elif data == "watermark_text":
-            settings['awaiting_text'] = True
-            save_watermark_settings(user_id, settings)
-            await safe_telegram_call(
-                client.edit_message_text,
-                chat_id,
-                cq.message.id,
-                "Reply with your watermark text (e.g., 'ABHI') within 30 seconds.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Cancel", callback_data="watermark_config")]
-                ])
-            )
-            asyncio.create_task(watermark_text_timeout(client, chat_id, user_id, cq.message.id))
-        elif data == "watermark_position":
-            await safe_telegram_call(
-                client.edit_message_text,
-                chat_id,
-                cq.message.id,
-                "Select watermark position:",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Left Top", callback_data="position_left_top")],
-                    [InlineKeyboardButton("Right Top", callback_data="position_right_top")],
-                    [InlineKeyboardButton("Left Bottom", callback_data="position_left_bottom")],
-                    [InlineKeyboardButton("Right Bottom", callback_data="position_right_bottom")],
-                    [InlineKeyboardButton("Back", callback_data="watermark_config")]
-                ])
-            )
-        elif data == "watermark_font_size":
-            await safe_telegram_call(
-                client.edit_message_text,
-                chat_id,
-                cq.message.id,
-                "Select font size:",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Small", callback_data="font_size_16")],
-                    [InlineKeyboardButton("Medium", callback_data="font_size_24")],
-                    [InlineKeyboardButton("Large", callback_data="font_size_32")],
-                    [InlineKeyboardButton("Back", callback_data="watermark_config")]
-                ])
-            )
-        elif data == "watermark_toggle":
-            settings['enabled'] = not settings.get('enabled', False)
-            save_watermark_settings(user_id, settings)
-            toggle_status = "ON" if settings['enabled'] else "OFF"
-            await safe_telegram_call(
-                client.edit_message_text,
-                chat_id,
-                cq.message.id,
-                (
-                    f"Watermark Settings:\n"
-                    f"Toggle: {toggle_status}\n"
-                    f"Text: {watermark_text}\n"
-                    f"Position: {position}\n"
-                    f"Font Size: {font_size_label}\n\n"
-                    f"Watermark {'enabled' if settings['enabled'] else 'disabled'}. Select an option:"
-                ),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Watermark Text", callback_data="watermark_text")],
-                    [InlineKeyboardButton("Position", callback_data="watermark_position")],
-                    [InlineKeyboardButton("Font Size", callback_data="watermark_font_size")],
-                    [InlineKeyboardButton(f"Toggle Watermark ({toggle_status})", callback_data="watermark_toggle")]
-                ])
-            )
-        elif data.startswith("position_"):
-            position = data.split("_", 1)[1]
-            settings['position'] = position
-            save_watermark_settings(user_id, settings)
-            position = position.replace('_', ' ').title()
-            await safe_telegram_call(
-                client.edit_message_text,
-                chat_id,
-                cq.message.id,
-                (
-                    f"Watermark Settings:\n"
-                    f"Toggle: {toggle_status}\n"
-                    f"Text: {watermark_text}\n"
-                    f"Position: {position}\n"
-                    f"Font Size: {font_size_label}\n\n"
-                    f"Position updated. Select an option:"
-                ),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Watermark Text", callback_data="watermark_text")],
-                    [InlineKeyboardButton("Position", callback_data="watermark_position")],
-                    [InlineKeyboardButton("Font Size", callback_data="watermark_font_size")],
-                    [InlineKeyboardButton(f"Toggle Watermark ({toggle_status})", callback_data="watermark_toggle")]
-                ])
-            )
-        elif data.startswith("font_size_"):
-            font_size = int(data.split("_")[-1])
-            settings['font_size'] = font_size
-            save_watermark_settings(user_id, settings)
-            font_size_label = {16: 'Small', 24: 'Medium', 32: 'Large'}.get(font_size, 'Medium')
-            await safe_telegram_call(
-                client.edit_message_text,
-                chat_id,
-                cq.message.id,
-                (
-                    f"Watermark Settings:\n"
-                    f"Toggle: {toggle_status}\n"
-                    f"Text: {watermark_text}\n"
-                    f"Position: {position}\n"
-                    f"Font Size: {font_size_label}\n\n"
-                    f"Font size updated. Select an option:"
-                ),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Watermark Text", callback_data="watermark_text")],
-                    [InlineKeyboardButton("Position", callback_data="watermark_position")],
-                    [InlineKeyboardButton("Font Size", callback_data="watermark_font_size")],
-                    [InlineKeyboardButton(f"Toggle Watermark ({toggle_status})", callback_data="watermark_toggle")]
-                ])
-            )
+        try:
+            if data == "watermark_config":
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    cq.message.id,
+                    (
+                        f"Watermark Settings:\n"
+                        f"Toggle: {toggle_status}\n"
+                        f"Text: {watermark_text}\n"
+                        f"Position: {position}\n"
+                        f"Font Size: {font_size_label}\n\n"
+                        f"Select an option:"
+                    ),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Watermark Text", callback_data="watermark_text")],
+                        [InlineKeyboardButton("Position", callback_data="watermark_position")],
+                        [InlineKeyboardButton("Font Size", callback_data="watermark_font_size")],
+                        [InlineKeyboardButton(f"Toggle Watermark ({toggle_status})", callback_data="watermark_toggle")]
+                    ])
+                )
+            elif data == "watermark_text":
+                settings['awaiting_text'] = True
+                save_watermark_settings(user_id, settings)
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    cq.message.id,
+                    "Reply with your watermark text (e.g., 'ABHI') within 30 seconds.",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Cancel", callback_data="watermark_config")]
+                    ])
+                )
+                asyncio.create_task(watermark_text_timeout(client, chat_id, user_id, cq.message.id))
+            elif data == "watermark_position":
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    cq.message.id,
+                    "Select watermark position:",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Left Top", callback_data="position_left_top")],
+                        [InlineKeyboardButton("Right Top", callback_data="position_right_top")],
+                        [InlineKeyboardButton("Left Bottom", callback_data="position_left_bottom")],
+                        [InlineKeyboardButton("Right Bottom", callback_data="position_right_bottom")],
+                        [InlineKeyboardButton("Back", callback_data="watermark_config")]
+                    ])
+                )
+            elif data == "watermark_font_size":
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    cq.message.id,
+                    "Select font size:",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Small", callback_data="font_size_16")],
+                        [InlineKeyboardButton("Medium", callback_data="font_size_24")],
+                        [InlineKeyboardButton("Large", callback_data="font_size_32")],
+                        [InlineKeyboardButton("Back", callback_data="watermark_config")]
+                    ])
+                )
+            elif data == "watermark_toggle":
+                settings['enabled'] = not settings.get('enabled', False)
+                save_watermark_settings(user_id, settings)
+                toggle_status = "ON" if settings['enabled'] else "OFF"
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    cq.message.id,
+                    (
+                        f"Watermark Settings:\n"
+                        f"Toggle: {toggle_status}\n"
+                        f"Text: {watermark_text}\n"
+                        f"Position: {position}\n"
+                        f"Font Size: {font_size_label}\n\n"
+                        f"Watermark {'enabled' if settings['enabled'] else 'disabled'}. Select an option:"
+                    ),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Watermark Text", callback_data="watermark_text")],
+                        [InlineKeyboardButton("Position", callback_data="watermark_position")],
+                        [InlineKeyboardButton("Font Size", callback_data="watermark_font_size")],
+                        [InlineKeyboardButton(f"Toggle Watermark ({toggle_status})", callback_data="watermark_toggle")]
+                    ])
+                )
+            elif data.startswith("position_"):
+                position = data.split("_", 1)[1]
+                settings['position'] = position
+                save_watermark_settings(user_id, settings)
+                position = position.replace('_', ' ').title()
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    cq.message.id,
+                    (
+                        f"Watermark Settings:\n"
+                        f"Toggle: {toggle_status}\n"
+                        f"Text: {watermark_text}\n"
+                        f"Position: {position}\n"
+                        f"Font Size: {font_size_label}\n\n"
+                        f"Position updated. Select an option:"
+                    ),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Watermark Text", callback_data="watermark_text")],
+                        [InlineKeyboardButton("Position", callback_data="watermark_position")],
+                        [InlineKeyboardButton("Font Size", callback_data="watermark_font_size")],
+                        [InlineKeyboardButton(f"Toggle Watermark ({toggle_status})", callback_data="watermark_toggle")]
+                    ])
+                )
+            elif data.startswith("font_size_"):
+                font_size = int(data.split("_")[-1])
+                settings['font_size'] = font_size
+                save_watermark_settings(user_id, settings)
+                font_size_label = {16: 'Small', 24: 'Medium', 32: 'Large'}.get(font_size, 'Medium')
+                await safe_telegram_call(
+                    client.edit_message_text,
+                    chat_id,
+                    cq.message.id,
+                    (
+                        f"Watermark Settings:\n"
+                        f"Toggle: {toggle_status}\n"
+                        f"Text: {watermark_text}\n"
+                        f"Position: {position}\n"
+                        f"Font Size: {font_size_label}\n\n"
+                        f"Font size updated. Select an option:"
+                    ),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Watermark Text", callback_data="watermark_text")],
+                        [InlineKeyboardButton("Position", callback_data="watermark_position")],
+                        [InlineKeyboardButton("Font Size", callback_data="watermark_font_size")],
+                        [InlineKeyboardButton(f"Toggle Watermark ({toggle_status})", callback_data="watermark_toggle")]
+                    ])
+                )
+        except Exception as e:
+            logger.error(f"Callback handling failed for {data}: {str(e)}")
+            await cq.answer(f"Error: {str(e)}", show_alert=True)
 
     @app.on_message(filters.text & filters.reply)
     async def handle_watermark_text(client: Client, message: Message):

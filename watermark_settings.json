@@ -3,7 +3,7 @@
         "enabled": true,
         "text": "ABHI",
         "position": "left_top",
-        "font_size": 32,
+        "font_size": 16,
         "awaiting_text": false
     }
 }

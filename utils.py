@@ -212,6 +212,8 @@ async def upload_with_progress(client: Client, chat_id: int, user_id: int, file_
     base_delay = 2
     for attempt in range(max_retries):
         try:
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File {file_path} does not exist")
             bar, last_percent = None, user_selections[chat_id][user_id].get('last_percent', 0)
             async def progress(cur, total):
                 nonlocal bar, last_percent
@@ -233,7 +235,7 @@ async def upload_with_progress(client: Client, chat_id: int, user_id: int, file_
                 await safe_telegram_call(client.send_video, chat_id, file_path, caption=caption, progress=progress, thumb=thumb if thumb and os.path.exists(thumb) else None, file_name=sanitize_filename(os.path.basename(file_path)), reply_to_message_id=reply_to_message_id)
             else:
                 await safe_telegram_call(client.send_document, chat_id, file_path, caption=caption, progress=progress, thumb=thumb if thumb and os.path.exists(thumb) else None, file_name=sanitize_filename(os.path.basename(file_path)), reply_to_message_id=reply_to_message_id)
-            break
+            return True  # Successful upload
         except Exception as e:
             logger.error(f"Upload attempt {attempt + 1}/{max_retries} failed: {str(e)}")
             if attempt + 1 == max_retries:
@@ -243,10 +245,29 @@ async def upload_with_progress(client: Client, chat_id: int, user_id: int, file_
                     user_selections[chat_id][user_id]['status_message_id'],
                     f"Upload failed after {max_retries} attempts: {str(e)}"
                 )
-                raise
+                return False
             delay = base_delay * (2 ** attempt)  # Exponential backoff: 2s, 4s, 8s, 16s, 32s
             logger.info(f"Retrying upload after {delay}s delay")
             await asyncio.sleep(delay)
+    return False
+
+async def cleanup_files(files: list):
+    """Attempt to delete files with retries for PermissionError."""
+    max_retries = 3
+    for file in files:
+        if not os.path.exists(file):
+            continue
+        for attempt in range(max_retries):
+            try:
+                os.remove(file)
+                logger.debug(f"Deleted file: {file}")
+                break
+            except PermissionError as e:
+                logger.warning(f"PermissionError deleting {file}: {str(e)}, attempt {attempt + 1}/{max_retries}")
+                if attempt + 1 == max_retries:
+                    logger.error(f"Failed to delete {file} after {max_retries} attempts")
+                    break
+                await asyncio.sleep(1)  # Wait before retrying
 
 async def update_status_message(client: Client, chat_id: int, user_id: int, status: str, force_update: bool = False):
     try:
@@ -274,9 +295,9 @@ async def create_track_selection_keyboard(chat_id: int, user_id: int, tracks: li
 
 async def create_quality_selection_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("High Quality", callback_data="quality_high")],
-        [InlineKeyboardButton("Medium Quality", callback_data="quality_medium")],
-        [InlineKeyboardButton("Low Quality", callback_data="quality_low")]
+        [InlineKeyboardButton("1080P", callback_data="quality_high")],
+        [InlineKeyboardButton("720P", callback_data="quality_medium")],
+        [InlineKeyboardButton("480P", callback_data="quality_low")]
     ])
 
 async def create_watermark_prompt():

@@ -9,7 +9,7 @@ from utils import (
     get_audio_tracks, select_audio_tracks, download_with_progress,
     upload_with_progress, create_track_selection_keyboard,
     create_quality_selection_keyboard, create_watermark_prompt, create_format_selection_keyboard,
-    user_selections, sanitize_filename, validate_video_file, generate_thumbnail, check_daily_limit, safe_telegram_call, load_watermark_settings
+    user_selections, sanitize_filename, validate_video_file, generate_thumbnail, check_daily_limit, safe_telegram_call, load_watermark_settings, cleanup_files
 )
 
 logger = logging.getLogger(__name__)
@@ -53,13 +53,13 @@ def register_video_handlers(app: Client):
         user_selections[chat_id][user_id]['status_message_id'] = msg.id
         await download_with_progress(client, message, path, chat_id, user_id)
         if not validate_video_file(path):
-            os.remove(path)
+            await cleanup_files([path])
             await safe_telegram_call(client.edit_message_text, chat_id, msg.id, "Invalid video file.")
             user_selections[chat_id][user_id]['processing'] = False
             return
         tracks = get_audio_tracks(path)
         if not tracks:
-            os.remove(path)
+            await cleanup_files([path])
             await safe_telegram_call(client.edit_message_text, chat_id, msg.id, "No audio tracks found.")
             user_selections[chat_id][user_id]['processing'] = False
             return
@@ -127,6 +127,7 @@ def register_video_handlers(app: Client):
             user_selections[chat_id][user_id]['quality'] = quality
             settings = load_watermark_settings(user_id)
             if settings.get('enabled', False) and settings.get('text'):
+                user_selections[chat_id][user_id]['watermark'] = settings['text']
                 user_selections[chat_id][user_id]['status'] = "Selecting output format..."
                 await safe_telegram_call(
                     client.edit_message_text,
@@ -167,6 +168,9 @@ def register_video_handlers(app: Client):
                 reply_markup=await create_format_selection_keyboard()
             )
         elif data.startswith("format_"):
+            if user_selections[chat_id][user_id].get('status') == "Processing video...":
+                await cq.answer("Video is already being processed. Please wait.", show_alert=True)
+                return
             fmt = data.split("_")[1]
             info = user_selections[chat_id][user_id]
             info['output_format'] = fmt
@@ -177,22 +181,58 @@ def register_video_handlers(app: Client):
             thumb = os.path.join(DOWNLOAD_DIR, f"{os.path.splitext(outname)[0]}.jpg")
             info['status'] = "Processing video..."
             await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, "Processing video...")
-            select_audio_tracks(src, dst, list(info['selected_tracks']), fmt, quality=info.get('quality', 'medium'), watermark=info.get('watermark'), user_id=user_id)
-            generate_thumbnail(src, thumb)
-            cap = info.get('default_caption', "Here is your video.")
-            info['status'] = "Uploading video..."
-            await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, "Uploading video...")
-            await upload_with_progress(client, chat_id, user_id, dst, cap, fmt, thumb, reply_to_message_id=info.get('original_message_id'))
-            for f in [src, dst, thumb]:
-                if os.path.exists(f): os.remove(f)
-            user_selections[chat_id][user_id]['processing'] = False
-            del user_selections[chat_id][user_id]['file_path']
-            info['status'] = "Completed"
-            await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, "Completed")
-            await safe_telegram_call(cq.message.delete)
-            if user_selections[chat_id][user_id]['queue']:
-                nxt = user_selections[chat_id][user_id]['queue'].pop(0)
-                await handle_message(client, nxt)
+
+            async def process_with_timeout():
+                try:
+                    # Run processing in a task with a 5-minute timeout
+                    await asyncio.wait_for(
+                        process_video_task(client, chat_id, user_id, src, dst, thumb, fmt, info, status_message_id),
+                        timeout=300  # 5 minutes
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(f"Processing timed out for user {user_id}")
+                    info['status'] = "Processing timed out"
+                    await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, "Processing timed out. Please try again.")
+                    await cleanup_files([src, dst, thumb])
+                    info['processing'] = False
+                    if 'file_path' in info:
+                        del info['file_path']
+                except Exception as e:
+                    logger.error(f"Processing failed for user {user_id}: {str(e)}")
+                    info['status'] = f"Processing failed: {str(e)}"
+                    await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, f"Processing failed: {str(e)}")
+                    await cleanup_files([src, dst, thumb])
+                    info['processing'] = False
+                    if 'file_path' in info:
+                        del info['file_path']
+                finally:
+                    if info.get('queue'):
+                        nxt = info['queue'].pop(0)
+                        await handle_message(client, nxt)
+
+            async def process_video_task(client, chat_id, user_id, src, dst, thumb, fmt, info, status_message_id):
+                try:
+                    select_audio_tracks(src, dst, list(info['selected_tracks']), fmt, quality=info.get('quality', 'medium'), watermark=info.get('watermark'), user_id=user_id)
+                    generate_thumbnail(src, thumb)
+                    cap = info.get('default_caption', "Here is your video.")
+                    info['status'] = "Uploading video..."
+                    await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, "Uploading video...")
+                    success = await upload_with_progress(client, chat_id, user_id, dst, cap, fmt, thumb, reply_to_message_id=info.get('original_message_id'))
+                    if success:
+                        info['status'] = "Completed"
+                        await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, "Completed")
+                        await safe_telegram_call(cq.message.delete)
+                    else:
+                        info['status'] = "Upload failed"
+                        await safe_telegram_call(client.edit_message_text, chat_id, status_message_id, "Upload failed. Please try again.")
+                    await cleanup_files([src, dst, thumb])
+                    info['processing'] = False
+                    if 'file_path' in info:
+                        del info['file_path']
+                except Exception as e:
+                    raise
+
+            asyncio.create_task(process_with_timeout())
 
     async def watermark_timeout(client: Client, chat_id: int, user_id: int, status_message_id: int):
         try:
