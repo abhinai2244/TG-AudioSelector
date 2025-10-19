@@ -7,9 +7,9 @@
 import os
 
 # Telegram API credentials
-API_ID = 29483517  # Replace with your API ID
-API_HASH = "e35a05d338376cbcd8162f810aed878d"  # Replace with your API Hash
-BOT_TOKEN = "7963594795:AAEl6_qUq1J_p63fLiRk-mVPmAh_wA7crns"  # Replace with your Bot Token
+API_ID =   # Replace with your API ID
+API_HASH = ""  # Replace with your API Hash
+BOT_TOKEN = ""  # Replace with your Bot Token
 
 # ----------------------------------------
 # 𝐌𝐀𝐃𝐄 𝐁𝐘 𝐀𝐁𝐇𝐈
@@ -28,7 +28,7 @@ DOWNLOAD_DIR = "downloads"
 
 # Allowed group IDs
 ALLOWED_GROUP_IDS = [
-    -1002729239201,  # Your group ID from logs
+    -10027,  # Your group ID from logs
     # Add more group IDs as needed
 ]
 
