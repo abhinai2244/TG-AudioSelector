@@ -1,7 +1,7 @@
 # 🎵 Audio Selector Bot
 
 <p align="center">
-  <img src="https://te.legra.ph/file/3633e921e405a42294f91.jpg" alt="Audio Selector Bot Logo">
+  <img src="https://ibb.co/YFBd8450" alt="Audio Selector Bot Logo">
 </p>
 
 [![Pyrogram](https://img.shields.io/badge/Pyrogram-Bot-blue)](https://docs.pyrogram.org/)
