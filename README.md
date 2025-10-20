@@ -1,8 +1,13 @@
 # 🎵 Audio Selector Bot
 
+<p align="center">
+  <img src="https://te.legra.ph/file/3633e921e405a42294f91.jpg" alt="Audio Selector Bot Logo">
+</p>
+
 [![Pyrogram](https://img.shields.io/badge/Pyrogram-Bot-blue)](https://docs.pyrogram.org/)
 [![FFmpeg](https://img.shields.io/badge/Powered%20by-FFmpeg-red)](https://ffmpeg.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![Visitor Count](https://profile-counter.glitch.me/abhinai2244/TG-AudioSelector/count.svg)
 
 A **Telegram bot** built using [Pyrogram](https://docs.pyrogram.org/) that allows users to **upload video files**, **select specific audio tracks**, and **export the video** with the chosen audio tracks. Supports both **MP4 (video)** and **MKV (document)** formats.
 
@@ -38,7 +43,7 @@ A **Telegram bot** built using [Pyrogram](https://docs.pyrogram.org/) that allow
 ### 1. Clone the repository
 
 ```sh
-git clone https://github.com/your-username/audio-selector-bot.git
+git clone https://github.com/abhinai2244/TG-AudioSelector.git
 cd audio-selector-bot
 ```
 
