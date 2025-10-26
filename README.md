@@ -38,7 +38,7 @@ A **Telegram bot** built using [Pyrogram](https://docs.pyrogram.org/) that allow
 ### 1. Clone the repository
 
 ```sh
-git clone https://github.com/your-username/audio-selector-bot.git
+git clone[ https://github.com/your-username/audio-selector-bot.git](https://github.com/abhinai2244/TG-AudioSelector.git)
 cd audio-selector-bot
 ```
 
